@@ -1,6 +1,7 @@
 import subprocess
 import typing
 import sys
+import os
 import re
 import json
 
@@ -43,19 +44,22 @@ def encode_video(video: str, output_file: str):
     process = subprocess.Popen(['ffmpeg', '-hide_banner', '-v', 'warning', '-stats', '-y',
                                 '-i', video,
                                 '-pix_fmt', 'yuv420p',
-                                '-vf', 'scale=w=1920:h=1080:force_original_aspect_ratio=decrease',
+                                '-vf', 'scale=w=1920:h=1500:force_original_aspect_ratio=decrease,'
+                                       'crop=w=iw-mod(iw\,2):h=ih-mod(ih\,2)',
                                 '-c:v', 'hevc', '-crf:v', '28', '-preset:v', 'faster',
                                 '-c:a', 'libopus', '-b:a', '64k',
                                 output_file],
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
 
+    rawoutput: typing.List[str] = []
     output = ""
     try:
         while True:
             value = process.stderr.read(25).decode('utf8').replace('\r', '\n')
             if value == '':
                 break
+            rawoutput.append(value)
             output += value
             lines = output.split('\n')
             output = lines[-1]
@@ -71,9 +75,15 @@ def encode_video(video: str, output_file: str):
                 sys.stdout.flush()
     except KeyboardInterrupt as e:
         process.kill()
+        os.remove(output_file)
         raise
 
     process.wait()
+
+    if process.returncode != 0:
+        print(f"Failed on file {video}.")
+        print(f"stdout:\n{process.stdout.read().decode('utf8')}")
+        print(f"stderr:\n{''.join(rawoutput)}")
 
     shrink = size / get_info(output_file)[1]
 
@@ -85,6 +95,10 @@ def process_videos(file_pairs: typing.List[typing.Tuple[str, str]]):
     total_count = len(file_pairs)
     for input_file, output_file in file_pairs:
         finished_count += 1
+        if os.path.isfile(output_file):
+            print(f"{finished_count:5d}/{total_count:d}: "
+                  f"{finished_count / total_count * 100:5.1f}%: Skipping {output_file}")
+            continue
         print(f"{finished_count:5d}/{total_count:d}: "
               f"{finished_count / total_count * 100:5.1f}%: {output_file}")
         encode_video(input_file, output_file)
