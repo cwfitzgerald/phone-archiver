@@ -25,7 +25,7 @@ def find_imagemagick() -> typing.Optional[typing.List[str]]:
 
 
 def start_process(command: typing.List[str], input_file: str, output_file: str) -> subprocess.Popen:
-    return subprocess.Popen(command + ['-resize', '1920x1920>',
+    return subprocess.Popen(command + ['-resize', '1920x1500>',
                                        '-strip',
                                        '-interlace', 'Plane',
                                        '-sampling-factor', '4:2:0',
@@ -43,8 +43,11 @@ def process_images(command: typing.List[str], input_pairs: typing.List[typing.Tu
     running_processes: typing.List[subprocess.Popen] = []
 
     try:
-        for input_file, output_file in input_pairs[:core_count]:
-            running_processes.append(start_process(command, input_file, output_file))
+        for input_file, output_file in input_pairs:
+            if not os.path.isfile(output_file):
+                running_processes.append(start_process(command, input_file, output_file))
+            if len(running_processes) == core_count:
+                break
 
         index = min(core_count, len(input_pairs))
         finished_count = 0
@@ -65,6 +68,8 @@ def process_images(command: typing.List[str], input_pairs: typing.List[typing.Tu
                           f"Converted {process.args[-1]}. "
                           f"Shrunk: {start_size / end_size:.2f}x")
                     running_processes.remove(process)
+                    while index < len(input_pairs) and os.path.isfile(input_pairs[index][1]):
+                        index += 1
                     if index < len(input_pairs):
                         running_processes.append(start_process(command, *input_pairs[index]))
                         index += 1
@@ -72,4 +77,5 @@ def process_images(command: typing.List[str], input_pairs: typing.List[typing.Tu
     except KeyboardInterrupt as k:
         for p in running_processes:
             p.kill()
+            os.remove(p.args[-1])
         raise

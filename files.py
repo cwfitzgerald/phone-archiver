@@ -35,8 +35,11 @@ def copy(file_pairs: typing.List[typing.Tuple[str, str]]):
     finished_count = 0
     total_count = len(file_pairs)
     for input_file, output_file in file_pairs:
+        finished_count += 1
         print(f"{finished_count:5d}/{total_count:d}: "
               f"{finished_count / total_count * 100:5.1f}%: {output_file}")
+        if os.path.isfile(output_file):
+            continue
         shutil.copy2(input_file, output_file)
 
 
